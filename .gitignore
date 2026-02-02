@@ -1,0 +1,38 @@
+# File di configurazione con token e credenziali
+config.py
+
+# Token e chiavi
+*.key
+*.pem
+.env
+
+# Database e dati delle aste
+auctions_data.json
+*.db
+*.sqlite
+
+# File Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environment
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Log files
+*.log
