@@ -1,0 +1,5 @@
+BOT_TOKEN = "8308395407:AAEosr-rcchR4sLsYagN8RRwkr3JwTSwFbg"
+CHANNEL_ID = -1002961437586
+
+# Nel bot:
+from config import BOT_TOKEN, CHANNEL_ID
