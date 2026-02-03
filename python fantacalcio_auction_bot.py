@@ -34,7 +34,7 @@ from telegram.error import TelegramError
 # CONFIGURAZIONE - MODIFICA QUESTI VALORI
 # ============================================================================
 
-BOT_TOKEN = "8308395407:AAE8vVWDcmmLDVTC_iIgbpyslWnGysGLhmY"  # Token del bot
+BOT_TOKEN = "8308395407:AAEosr-rcchR4sLsYagN8RRwkr3JwTSwFbg"  # Token del bot
 CHANNEL_ID = -1002961437586  # ID del canale
 
 # ============================================================================
@@ -168,70 +168,68 @@ def format_closed_caption(cifra: int, username: str, svincolo: str) -> str:
 
 async def cmd_asta(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
-    Comando /asta per creare una nuova asta.
-    Il bot pubblica automaticamente il messaggio nel canale.
-    Uso: /asta Ronaldo 1 svincolo Belotti
+    Comando /asta per inizializzare un'asta.
+    Deve essere usato come risposta al messaggio dell'asta nel gruppo (commenti).
+    Uso: rispondi al messaggio con /asta
     """
     message = update.message
     
-    # Verifica che ci siano argomenti
-    if not context.args:
+    # Verifica che sia una risposta
+    if not message.reply_to_message:
         await message.reply_text(
-            "❌ **Formato non valido!**\n\n"
-            "**Uso:** `/asta [testo]`\n\n"
-            "**Esempio:**\n"
-            "`/asta Ronaldo 1 svincolo Belotti`"
+            "❌ **Devi rispondere al messaggio dell'asta!**\n\n"
+            "**Procedura:**\n"
+            "1. Qualcuno scrive l'asta nel canale\n"
+            "2. Nei commenti, rispondi al messaggio con `/asta`"
         )
         return
     
-    # Ricostruisci il testo dell'asta
-    auction_text = ' '.join(context.args)
+    replied_message = message.reply_to_message
+    
+    # Verifica che provenga dal canale
+    if not (replied_message.is_automatic_forward and replied_message.sender_chat and replied_message.sender_chat.id == CHANNEL_ID):
+        await message.reply_text(
+            "❌ Devi rispondere a un messaggio inoltrato dal canale!"
+        )
+        return
+    
+    # Prendi il testo
+    auction_text = replied_message.text or replied_message.caption or ""
+    
+    if not auction_text:
+        await message.reply_text("❌ Il messaggio non contiene testo!")
+        return
     
     try:
-        # Pubblica il messaggio nel canale
-        channel_message = await context.bot.send_message(
-            chat_id=CHANNEL_ID,
-            text=auction_text
-        )
-        
-        channel_message_id = channel_message.message_id
-        
-        # Aspetta un momento per dare tempo a Telegram di inoltrare il messaggio al gruppo
-        await asyncio.sleep(2)
-        
-        # Il messaggio verrà inoltrato automaticamente nel gruppo
-        # Salva l'asta con scadenza iniziale
+        # Salva l'asta
         auctions = load_auctions()
-        
-        # Usiamo l'ID del canale come chiave principale
-        auction_key = f"channel_{channel_message_id}"
+        group_message_id = replied_message.message_id
+        auction_key = f"group_{group_message_id}"
         
         scadenza = datetime.now() + timedelta(hours=AUCTION_DURATION_HOURS)
         
         auctions[auction_key] = {
-            'channel_message_id': channel_message_id,
+            'group_message_id': group_message_id,
             'original_text': auction_text,
             'current_offer': 0,
             'username': 'Nessuno',
             'svincolo': 'Da definire',
             'active': True,
             'deadline': scadenza.isoformat(),
-            'message_id': channel_message_id,
             'created_by': message.from_user.username or message.from_user.first_name
         }
         
         save_auctions(auctions)
         
         await message.reply_text(
-            f"✅ **Asta creata con successo!**\n\n"
-            f"📝 Testo: {auction_text}\n"
+            f"✅ **Asta avviata!**\n\n"
             f"⏳ Scadenza: {scadenza.strftime('%d/%m %H:%M')}\n\n"
-            f"🎯 Gli utenti possono fare offerte nei commenti del canale!"
+            f"Fate le vostre offerte!"
         )
         
-        logger.info(f"Asta creata - ID Canale: {channel_message_id}")
+        logger.info(f"Asta creata - Gruppo ID: {group_message_id}")
         
-        # Pianifica la chiusura dell'asta (se JobQueue è disponibile)
+        # Pianifica chiusura
         if context.job_queue:
             job_name = f"close_auction_{auction_key}"
             context.job_queue.run_once(
@@ -240,18 +238,9 @@ async def cmd_asta(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 data={'auction_key': auction_key},
                 name=job_name
             )
-            logger.info(f"Job di chiusura pianificato per {scadenza}")
-        else:
-            logger.warning("JobQueue non disponibile - chiusura automatica disabilitata")
         
-    except TelegramError as e:
-        logger.error(f"Errore nella creazione dell'asta: {e}")
-        await message.reply_text(
-            f"❌ **Errore nella pubblicazione:**\n{str(e)}\n\n"
-            "Verifica che il bot sia amministratore del canale con permesso di pubblicare messaggi."
-        )
     except Exception as e:
-        logger.error(f"Errore imprevisto: {e}")
+        logger.error(f"Errore nella creazione dell'asta: {e}")
         await message.reply_text(f"❌ Errore: {e}")
 
 
@@ -348,10 +337,20 @@ async def cmd_info(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     auctions = load_auctions()
     auction_found = None
     
+    # Cerca l'asta corrispondente
+    replied_text = replied_message.text or replied_message.caption or ""
+    
     for key, auction in auctions.items():
-        if auction.get('active'):
+        if auction.get('active') and auction.get('original_text') == replied_text:
             auction_found = auction
             break
+    
+    # Fallback: prendi la prima attiva
+    if not auction_found:
+        for key, auction in auctions.items():
+            if auction.get('active'):
+                auction_found = auction
+                break
     
     if not auction_found:
         await message.reply_text("❌ Asta non trovata!")
@@ -359,20 +358,25 @@ async def cmd_info(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     
     try:
         deadline = datetime.fromisoformat(auction_found['deadline'])
-        time_remaining = deadline - datetime.now()
-        hours = int(time_remaining.total_seconds() // 3600)
-        minutes = int((time_remaining.total_seconds() % 3600) // 60)
+        now = datetime.now()
+        time_remaining = deadline - now
         
-        status = "🟢 Attiva" if auction_found['active'] else "🔴 Chiusa"
+        if time_remaining.total_seconds() <= 0:
+            hours = 0
+            minutes = 0
+            status = "🔴 Scaduta"
+        else:
+            hours = int(time_remaining.total_seconds() // 3600)
+            minutes = int((time_remaining.total_seconds() % 3600) // 60)
+            status = "🟢 Attiva"
         
         info_text = (
             f"📊 **INFORMAZIONI ASTA**\n\n"
-            f"📝 Testo: {auction_found.get('original_text', 'N/A')}\n"
-            f"💰 Offerta attuale: {auction_found['current_offer']} crediti\n"
-            f"👤 Fantallenatore: {auction_found['username']}\n"
-            f"🔄 Svincolo: {auction_found['svincolo']}\n"
-            f"⏰ Tempo rimanente: {hours}h {minutes}m\n"
-            f"⏳ Scadenza: {deadline.strftime('%d/%m/%Y %H:%M')}\n"
+            f"📝 {auction_found.get('original_text', 'N/A')}\n\n"
+            f"💰 Offerta attuale: **{auction_found['current_offer']} crediti**\n"
+            f"👤 Fantallenatore: **{auction_found['username']}**\n"
+            f"⏰ Tempo rimanente: **{hours}h {minutes}m**\n"
+            f"⏳ Scadenza: {deadline.strftime('%d/%m %H:%M')}\n"
             f"📍 Stato: {status}"
         )
         
@@ -424,19 +428,6 @@ async def cmd_chiudi(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         auction_found['active'] = False
         auctions[auction_key] = auction_found
         save_auctions(auctions)
-        
-        # Aggiorna la caption nel canale
-        closed_caption = format_closed_caption(
-            auction_found['current_offer'],
-            auction_found['username'],
-            auction_found['svincolo']
-        )
-        
-        await context.bot.edit_message_caption(
-            chat_id=CHANNEL_ID,
-            message_id=auction_found['channel_message_id'],
-            caption=closed_caption
-        )
         
         # Rimuovi il job di chiusura automatica (se esiste)
         if context.job_queue:
@@ -545,20 +536,21 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     help_text = (
         "🤖 **COMANDI DISPONIBILI**\n\n"
         
-        "**📝 Gestione Aste:**\n"
-        "`/asta [testo]` - Crea nuova asta\n"
-        "   Es: `/asta Ronaldo 1 svincolo Belotti`\n\n"
+        "**📝 Creare un'Asta:**\n"
+        "1. Scrivi nel canale: `Ronaldo 1 svincolo Belotti`\n"
+        "2. Nei commenti, rispondi al messaggio con `/asta`\n\n"
         
+        "**⏱️ Durante l'Asta:**\n"
         "`/time` - Tempo rimanente (rispondi al messaggio)\n"
         "`/info` - Dettagli asta (rispondi al messaggio)\n"
-        "`/chiudi` - Chiudi asta manualmente (rispondi al messaggio)\n"
+        "`/chiudi` - Chiudi manualmente (rispondi al messaggio)\n"
         "`/aste` - Lista aste attive\n\n"
         
         "**📊 Statistiche:**\n"
         "`/classifica` - Classifica fantallenatori\n\n"
         
         "**💰 Fare un'offerta:**\n"
-        "Rispondi al messaggio dell'asta con:\n"
+        "Rispondi al messaggio dell'asta (nei commenti) con:\n"
         "`[cifra] svincolo [giocatore]`\n"
         "Es: `15 svincolo Belotti`\n\n"
         
@@ -598,7 +590,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         # Cerca l'asta corrispondente
         auction_found = None
         auction_key = None
-        channel_message_id = None
         
         # Il messaggio inoltrato potrebbe avere l'ID originale
         # Cerchiamo prima usando il testo del messaggio per matching
@@ -613,7 +604,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 if auction.get('original_text') == replied_text:
                     auction_found = auction
                     auction_key = key
-                    channel_message_id = auction.get('channel_message_id')
                     logger.info(f"Asta trovata tramite match testo: {key}")
                     break
         
@@ -623,7 +613,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 if auction.get('active', False):
                     auction_found = auction
                     auction_key = key
-                    channel_message_id = auction.get('channel_message_id')
                     logger.warning(f"Usato fallback - prima asta attiva: {key}")
                     break
         
@@ -635,12 +624,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             )
             return
         
-        if not channel_message_id:
-            logger.error(f"Asta {auction_key} non ha channel_message_id!")
-            await message.reply_text("❌ Errore: ID del canale non trovato!")
-            return
-        
-        logger.info(f"Asta trovata - Key: {auction_key}, Canale ID: {channel_message_id}")
+        logger.info(f"Asta trovata - Key: {auction_key}")
         
         # Parsing dell'offerta
         offer_data = parse_offer(message.text)
@@ -656,19 +640,18 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         cifra, svincolo = offer_data
         username = message.from_user.username or message.from_user.first_name
         
+        # auction_key è già stato trovato sopra nella ricerca
         # Carica i dati delle aste
         auctions = load_auctions()
-        auction_key = str(channel_message_id)
         
         # Validazione: controlla se l'offerta è superiore all'attuale
-        if auction_key in auctions:
-            current_offer = auctions[auction_key].get('current_offer', 0)
-            if cifra <= current_offer:
-                await message.reply_text(
-                    f"❌ Offerta troppo bassa!\n"
-                    f"L'offerta attuale è: {current_offer} crediti"
-                )
-                return
+        current_offer = auction_found.get('current_offer', 0)
+        if current_offer > 0 and cifra <= current_offer:
+            await message.reply_text(
+                f"❌ Offerta troppo bassa!\n"
+                f"L'offerta attuale è: {current_offer} crediti"
+            )
+            return
         
         # Calcola la nuova scadenza
         scadenza = datetime.now() + timedelta(hours=AUCTION_DURATION_HOURS)
@@ -684,50 +667,48 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         # Salva i dati
         save_auctions(auctions)
         
-        # Formatta la nuova didascalia
-        new_caption = format_caption(cifra, username, svincolo, scadenza)
+        # Formatta il nuovo testo (NON modifichiamo il messaggio, solo salviamo)
+        logger.info(f"Offerta registrata: {cifra} crediti da {username}, svincolo {svincolo}")
         
-        # Modifica la didascalia del messaggio nel canale
+        # Feedback positivo all'utente con conferma
         try:
-            logger.info(f"Tentativo di modifica caption - Channel ID: {CHANNEL_ID}, Message ID: {channel_message_id}")
-            await context.bot.edit_message_caption(
-                chat_id=CHANNEL_ID,
-                message_id=channel_message_id,
-                caption=new_caption
-            )
-            logger.info(f"Didascalia aggiornata per l'asta {auction_key}")
-            
-            # Feedback positivo all'utente
             await message.set_reaction("👍")
-            
-            # Pianifica la chiusura dell'asta (se JobQueue disponibile)
-            job_name = f"close_auction_{auction_key}"
-            
-            # Rimuovi eventuali job precedenti per questa asta
-            if context.job_queue:
-                current_jobs = context.job_queue.get_jobs_by_name(job_name)
-                for job in current_jobs:
-                    job.schedule_removal()
-                
-                # Pianifica nuovo job
-                context.job_queue.run_once(
-                    close_auction,
-                    when=AUCTION_DURATION_HOURS * 3600,  # secondi
-                    data={'auction_key': auction_key},
-                    name=job_name
-                )
-                logger.info(f"Job di chiusura pianificato per {scadenza}")
-            else:
-                logger.warning("JobQueue non disponibile")
-            
-        except TelegramError as e:
-            logger.error(f"Errore nell'aggiornamento della didascalia: {e}")
-            logger.error(f"Dettagli errore - Type: {type(e).__name__}, Message: {str(e)}")
+            # Aggiungi anche un messaggio di conferma
             await message.reply_text(
-                f"⚠️ Errore nell'aggiornamento dell'asta.\n"
-                f"Dettagli: {str(e)}\n\n"
-                f"Verifica che il bot sia amministratore del canale con permesso 'Modifica messaggi'."
+                f"✅ **Offerta registrata!**\n\n"
+                f"👤 {username}\n"
+                f"💰 {cifra} crediti\n"
+                f"🔄 Svincolo: {svincolo}"
             )
+        except Exception as e:
+            logger.warning(f"Impossibile impostare reazione: {e}")
+            # Se la reazione fallisce, rispondi con testo
+            await message.reply_text(
+                f"✅ **Offerta registrata!**\n\n"
+                f"👤 {username}\n"
+                f"💰 {cifra} crediti\n"
+                f"🔄 Svincolo: {svincolo}"
+            )
+        
+        # Pianifica la chiusura dell'asta (se JobQueue disponibile)
+        job_name = f"close_auction_{auction_key}"
+        
+        # Rimuovi eventuali job precedenti per questa asta
+        if context.job_queue:
+            current_jobs = context.job_queue.get_jobs_by_name(job_name)
+            for job in current_jobs:
+                job.schedule_removal()
+            
+            # Pianifica nuovo job
+            context.job_queue.run_once(
+                close_auction,
+                when=AUCTION_DURATION_HOURS * 3600,  # secondi
+                data={'auction_key': auction_key},
+                name=job_name
+            )
+            logger.info(f"Job di chiusura pianificato per {scadenza}")
+        else:
+            logger.warning("JobQueue non disponibile")
 
 
 # ============================================================================
@@ -760,23 +741,7 @@ async def close_auction(context: CallbackContext) -> None:
     auctions[auction_key] = auction
     save_auctions(auctions)
     
-    # Formatta la didascalia di chiusura
-    closed_caption = format_closed_caption(
-        auction['current_offer'],
-        auction['username'],
-        auction['svincolo']
-    )
-    
-    # Aggiorna la didascalia nel canale
-    try:
-        await context.bot.edit_message_caption(
-            chat_id=CHANNEL_ID,
-            message_id=auction['message_id'],
-            caption=closed_caption
-        )
-        logger.info(f"Asta {auction_key} chiusa con successo")
-    except TelegramError as e:
-        logger.error(f"Errore nella chiusura dell'asta: {e}")
+    logger.info(f"Asta {auction_key} chiusa - Vincitore: {auction['username']}, Offerta: {auction['current_offer']}")
 
 
 # ============================================================================
@@ -827,20 +792,7 @@ async def close_auction_directly(application: Application, auction_key: str, auc
     auctions[auction_key] = auction
     save_auctions(auctions)
     
-    closed_caption = format_closed_caption(
-        auction['current_offer'],
-        auction['username'],
-        auction['svincolo']
-    )
-    
-    try:
-        await application.bot.edit_message_caption(
-            chat_id=CHANNEL_ID,
-            message_id=auction['message_id'],
-            caption=closed_caption
-        )
-    except TelegramError as e:
-        logger.error(f"Errore nella chiusura diretta dell'asta: {e}")
+    logger.info(f"Asta {auction_key} chiusa direttamente")
 
 
 # ============================================================================

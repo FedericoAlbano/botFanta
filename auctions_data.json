@@ -1,86 +1,22 @@
 {
-  "316": {
-    "current_offer": 12,
-    "username": "GroupAnonymousBot",
-    "svincolo": "Padelli",
-    "deadline": "2026-02-01T01:15:14.996593",
-    "chat_id": -1002943738687,
-    "message_id": 316,
-    "active": true
-  },
-  "319": {
-    "current_offer": 15,
-    "username": "GroupAnonymousBot",
-    "svincolo": "Ferruzzi",
-    "deadline": "2026-02-01T01:18:13.502827",
-    "chat_id": -1002943738687,
-    "message_id": 319,
-    "active": true
-  },
-  "channel_54": {
-    "channel_message_id": 54,
-    "original_text": "Ronaldo 1 svincolo Belotti",
+  "group_380": {
+    "group_message_id": 380,
+    "original_text": "fanelli 1 svincolo perotoot",
     "current_offer": 0,
     "username": "Nessuno",
     "svincolo": "Da definire",
     "active": true,
-    "deadline": "2026-02-01T01:35:53.710907",
-    "message_id": 54,
-    "created_by": "Telegram"
-  },
-  "channel_57": {
-    "channel_message_id": 57,
-    "original_text": "ronaldo 1 svincolo belotti",
-    "current_offer": 0,
-    "username": "Nessuno",
-    "svincolo": "Da definire",
-    "active": true,
-    "deadline": "2026-02-01T01:43:35.489731",
-    "message_id": 57,
-    "created_by": "Telegram"
-  },
-  "57": {
-    "channel_message_id": 57,
-    "original_text": "ronaldo 1 svincolo belotti",
-    "current_offer": 13,
-    "username": "GroupAnonymousBot",
-    "svincolo": "Arda",
-    "active": true,
-    "deadline": "2026-02-01T01:44:06.917589",
-    "message_id": 57,
-    "created_by": "Telegram"
-  },
-  "channel_58": {
-    "channel_message_id": 58,
-    "original_text": "ronaldo 1 svincolo belotti",
-    "current_offer": 0,
-    "username": "Nessuno",
-    "svincolo": "Da definire",
-    "active": true,
-    "deadline": "2026-02-01T01:44:44.500821",
-    "message_id": 58,
+    "deadline": "2026-02-03T08:20:47.600118",
     "created_by": "GroupAnonymousBot"
   },
-  "channel_60": {
-    "channel_message_id": 60,
-    "original_text": "ronaldo 1 svincolo prutito",
-    "current_offer": 0,
-    "username": "Nessuno",
-    "svincolo": "Da definire",
+  "group_386": {
+    "group_message_id": 386,
+    "original_text": "titititit 1 svincolo popopopopo",
+    "current_offer": 68,
+    "username": "seb",
+    "svincolo": "Caccccccca",
     "active": true,
-    "deadline": "2026-02-01T01:47:15.290109",
-    "message_id": 60,
-    "created_by": "Telegram"
-  },
-  "60": {
-    "channel_message_id": 60,
-    "original_text": "ronaldo 1 svincolo prutito",
-    "current_offer": 5,
-    "username": "GroupAnonymousBot",
-    "svincolo": "Tutituti",
-    "active": true,
-    "deadline": "2026-02-01T01:47:33.984171",
-    "message_id": 60,
-    "created_by": "Telegram"
+    "deadline": "2026-02-03T08:26:48.592620",
+    "created_by": "GroupAnonymousBot"
   }
 }
